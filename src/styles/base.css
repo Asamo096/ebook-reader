@@ -415,6 +415,18 @@ img {
   letter-spacing: 0.05em;
 }
 
+.boot-screen__error {
+  max-width: 420px;
+  padding: 0 24px;
+  text-align: center;
+  line-height: 1.8 !important;
+  color: var(--ui-ink-soft) !important;
+}
+
+.boot-screen--error .btn {
+  margin-top: 8px;
+}
+
 /* Modals shared by the library */
 .modal-root {
   position: fixed;

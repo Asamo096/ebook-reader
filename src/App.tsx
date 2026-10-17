@@ -26,6 +26,7 @@ const readUiTheme = (): 'light' | 'dark' => {
 const App = () => {
   const [books, setBooks] = useState<Book[]>([])
   const [ready, setReady] = useState(false)
+  const [bootError, setBootError] = useState<string | null>(null)
   const [route, setRoute] = useState<Route>(parseRoute)
   const [uiTheme, setUiTheme] = useState<'light' | 'dark'>(readUiTheme)
   const [settings, setSettings] = useState<ReaderSettings>(loadSettings)
@@ -41,21 +42,32 @@ const App = () => {
 
   useEffect(() => {
     let cancelled = false
-    getAllBooks()
+    let timer = 0
+    const timeout = new Promise<never>((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error('BOOT_TIMEOUT')), 15_000)
+    })
+    Promise.race([getAllBooks(), timeout])
       .then(list => {
         if (cancelled) return
         setBooks(list)
         setReady(true)
       })
       .catch(error => {
+        if (cancelled) return
         console.error(error)
-        if (!cancelled) {
-          setReady(true)
-          notify('无法读取本地书架，请检查浏览器是否允许存储', 'error', { duration: 6000 })
-        }
+        const message = error instanceof Error ? error.message : String(error)
+        setBootError(
+          /DB_BLOCKED|BOOT_TIMEOUT/.test(message)
+            ? '书架数据正在被其他页面占用，或读取超时。如果你同时打开了多个墨阅页面，请先全部关闭，再重新加载。'
+            : `无法读取本地书架：${message || '未知错误'}`,
+        )
       })
-    return () => { cancelled = true }
-  }, [notify])
+      .finally(() => window.clearTimeout(timer))
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [])
 
   useEffect(() => {
     const onHashChange = () => setRoute(parseRoute())
@@ -196,6 +208,22 @@ const App = () => {
     : undefined
 
   if (!ready) {
+    if (bootError) {
+      return (
+        <div className="boot-screen boot-screen--error">
+          <div className="brand-seal brand-seal--large">墨</div>
+          <div className="boot-screen__title">书架暂时打不开</div>
+          <p className="boot-screen__error">{bootError}</p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => window.location.reload()}
+          >
+            重新加载
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="boot-screen">
         <div className="brand-seal brand-seal--large">墨</div>

@@ -47,27 +47,53 @@ interface MoyueDB extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<MoyueDB>> | null = null
 
+const openDatabase = () => {
+  let rejectBlocked: ((reason: Error) => void) | undefined
+  const blocked = new Promise<never>((_, reject) => {
+    rejectBlocked = reject
+  })
+  const opened = openDB<MoyueDB>('moyue-reader', 2, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('books')) {
+        const books = db.createObjectStore('books', { keyPath: 'id' })
+        books.createIndex('by-last-opened', 'lastOpenedAt')
+        books.createIndex('by-added', 'addedAt')
+      }
+      if (!db.objectStoreNames.contains('files')) {
+        db.createObjectStore('files', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('progress')) {
+        db.createObjectStore('progress', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('annotations')) {
+        const annotations = db.createObjectStore('annotations', { keyPath: 'id' })
+        annotations.createIndex('by-book', 'bookId')
+        annotations.createIndex('by-book-kind', ['bookId', 'kind'])
+      }
+    },
+    blocked() {
+      rejectBlocked?.(new Error('DB_BLOCKED'))
+    },
+    blocking() {
+      // An older page is open; close it so the next tab can upgrade.
+      window.location.reload()
+    },
+  })
+
+  return Promise.race([opened, blocked]).then(db => {
+    db.onversionchange = () => {
+      db.close()
+      window.location.reload()
+    }
+    return db
+  })
+}
+
 const getDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<MoyueDB>('moyue-reader', 2, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('books')) {
-          const books = db.createObjectStore('books', { keyPath: 'id' })
-          books.createIndex('by-last-opened', 'lastOpenedAt')
-          books.createIndex('by-added', 'addedAt')
-        }
-        if (!db.objectStoreNames.contains('files')) {
-          db.createObjectStore('files', { keyPath: 'id' })
-        }
-        if (!db.objectStoreNames.contains('progress')) {
-          db.createObjectStore('progress', { keyPath: 'id' })
-        }
-        if (!db.objectStoreNames.contains('annotations')) {
-          const annotations = db.createObjectStore('annotations', { keyPath: 'id' })
-          annotations.createIndex('by-book', 'bookId')
-          annotations.createIndex('by-book-kind', ['bookId', 'kind'])
-        }
-      },
+    dbPromise = openDatabase().catch(error => {
+      dbPromise = null
+      throw error
     })
   }
   return dbPromise
