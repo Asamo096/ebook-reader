@@ -37,6 +37,20 @@ npm run preview        # Vite 预览，http://127.0.0.1:5173
 npm start              # 使用 server.mjs 提供 dist 静态服务，http://127.0.0.1:5173
 ```
 
+### 部署到 Asamo096.github.io/Reader/
+
+项目提供了针对子路径的构建命令：
+
+```bash
+npm run build:reader
+```
+
+产物位于 `dist-reader/`，所有资源路径都以 `/Reader/` 为前缀。将该目录的**内容**复制到
+`Asamo096.github.io` 仓库 `site` 分支的 `Reader/` 目录，提交并推送即可通过
+`https://asamo096.github.io/Reader/` 访问（该地址会因自定义域名跳到 `https://asamo.top/Reader/`）。
+
+本仓库的源码仍在 `ebook-reader` 中，`Asamo096.github.io/Reader/` 只存放编译产物。
+
 > **数据存储在同一浏览器、同一源（协议 + 主机 + 端口）下。** 开发、预览与生产服务都默认使用 `http://127.0.0.1:5173`，请固定使用该地址打开；换成 `localhost` 或其他端口会被浏览器视为另一个站点，书架会显示为空。清除站点数据也会删除全部书籍与笔记。
 
 ## 使用说明
