@@ -174,6 +174,7 @@ export interface EngineCallbacks {
   onAnnotationClick: (annotationId: string, rect: ScreenRect | null) => void
   onSearchUpdate: (state: SearchState) => void
   onTTSUpdate: (state: TTSState) => void
+  onTocUpdate?: (toc: TocItem[]) => void
   onDismissPopovers: () => void
   onKeyDown: (event: KeyboardEvent) => void
   onToast: (message: string) => void

@@ -15,7 +15,7 @@ import { getAnnotations, putAnnotation, removeAnnotation } from '../../lib/db'
 import { ReflowableEngine } from '../../lib/foliateEngine'
 import { PdfEngine } from '../../lib/pdfEngine'
 import { READER_THEMES, getThemeVars } from '../../lib/themes'
-import { clamp, toReadableError, uid } from '../../lib/utils'
+import { clamp, formatBytes, toReadableError, uid } from '../../lib/utils'
 import { SidePanel, SearchPanel, type SideTab } from './Panels'
 import { SettingsPanel, resetReaderSettings } from './SettingsPanel'
 import { NoteDialog, type NoteEditorState } from './NoteDialog'
@@ -39,6 +39,46 @@ const emptySearchState = (query = ''): SearchState => ({
 })
 
 const isSmallScreen = () => window.matchMedia('(max-width: 860px)').matches
+
+const ReaderLoading = ({
+  title, fileSize, isPdf, onBack,
+}: {
+  title: string
+  fileSize: number
+  isPdf: boolean
+  onBack: () => void
+}) => {
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const timer = window.setInterval(() => setSeconds(value => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  return (
+    <div className="reader-loading">
+      <div className="reader-loading__mark">墨</div>
+      <Loader2 className="spin" size={20} />
+      <p>正在翻开《{title}》</p>
+      <span>
+        {isPdf ? '正在准备 PDF 页面与文字层…' : '正在整理章节与排版…'}
+        {' · '}{formatBytes(fileSize)}
+      </span>
+      {seconds >= 3 && (
+        <div className="reader-loading__elapsed">已等待 {seconds} 秒</div>
+      )}
+      {seconds >= 10 && (
+        <div className="reader-loading__hint">
+          {isPdf
+            ? '文件较大时，移动端解析会明显更久。此时可以继续等待，或返回书架稍后再试。'
+            : '这本书的章节或资源较多，解析可能需要更久。可以继续等待，或返回书架稍后再试。'}
+        </div>
+      )}
+      <button type="button" className="btn btn--ghost reader-loading__back" onClick={onBack}>
+        返回书架
+      </button>
+    </div>
+  )
+}
 
 export const Reader = ({
   book, settings, onSettingsChange, onProgress, onBack, notify,
@@ -561,6 +601,7 @@ export const Reader = ({
       },
       onSearchUpdate: (state: SearchState) => setSearchState(state),
       onTTSUpdate: (state: TTSState) => setTtsState(state),
+      onTocUpdate: (nextToc: TocItem[]) => setToc(nextToc),
       onDismissPopovers: () => {
         setSelection(null)
         setActiveAnnotationId(null)
@@ -787,12 +828,12 @@ export const Reader = ({
         >
           <div className="reader-engine-host" ref={stageRef} />
           {loading && (
-            <div className="reader-loading">
-              <div className="reader-loading__mark">墨</div>
-              <Loader2 className="spin" size={20} />
-              <p>正在翻开《{book.title}》</p>
-              <span>{isPdf ? '正在准备页面与文字层…' : '正在整理章节与排版…'}</span>
-            </div>
+            <ReaderLoading
+              title={book.title}
+              fileSize={book.fileSize}
+              isPdf={isPdf}
+              onBack={handleBack}
+            />
           )}
           {error && !loading && (
             <div className="reader-error">

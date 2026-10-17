@@ -375,6 +375,15 @@ img {
 .import-indicator small {
   font-size: 11px;
   color: var(--ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.import-indicator em {
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--accent);
 }
 
 .boot-screen {

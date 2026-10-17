@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import type { Book, ReadingProgress, ReaderSettings } from './types'
 import { getAllBooks, putBook, removeBook, findBookByFingerprint } from './lib/db'
 import { createBookFromFile } from './lib/importer'
-import { detectFormat, isSupportedFile, toReadableError } from './lib/utils'
+import { detectFormat, formatBytes, isSupportedFile, toReadableError } from './lib/utils'
 import { loadSettings, saveSettings } from './lib/themes'
 import { Library } from './components/Library'
 import { BookDialogs } from './components/BookDialogs'
@@ -29,7 +29,12 @@ const App = () => {
   const [route, setRoute] = useState<Route>(parseRoute)
   const [uiTheme, setUiTheme] = useState<'light' | 'dark'>(readUiTheme)
   const [settings, setSettings] = useState<ReaderSettings>(loadSettings)
-  const [importStatus, setImportStatus] = useState<{ name: string; index: number; total: number } | null>(null)
+  const [importStatus, setImportStatus] = useState<{
+    name: string
+    index: number
+    total: number
+    size: number
+  } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Book | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<Book | null>(null)
   const { toasts, notify, dismiss } = useToasts()
@@ -140,7 +145,7 @@ const App = () => {
       while (importQueueRef.current.length) {
         const file = importQueueRef.current.shift()!
         const index = importTotalRef.current - importQueueRef.current.length
-        setImportStatus({ name: file.name, index, total: importTotalRef.current })
+        setImportStatus({ name: file.name, index, total: importTotalRef.current, size: file.size })
         try {
           const existing = await findBookByFingerprint(file.name, file.size)
           if (existing) {
@@ -230,16 +235,7 @@ const App = () => {
       <ToastViewport toasts={toasts} dismiss={dismiss} />
 
       {importStatus && (
-        <div className="import-indicator">
-          <Loader2 className="spin" size={18} />
-          <div>
-            <strong>正在整理书本…</strong>
-            <span>{importStatus.name}</span>
-            {importStatus.total > 1 && (
-              <small>{importStatus.index} / {importStatus.total}</small>
-            )}
-          </div>
-        </div>
+        <ImportIndicator key={`${importStatus.name}-${importStatus.index}`} status={importStatus} />
       )}
 
       <BookDialogs
@@ -251,6 +247,34 @@ const App = () => {
         onOpen={openBook}
         onRequestDelete={setDeleteTarget}
       />
+    </div>
+  )
+}
+
+const ImportIndicator = ({ status }: {
+  status: { name: string; index: number; total: number; size: number }
+}) => {
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const timer = window.setInterval(() => setSeconds(value => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  return (
+    <div className="import-indicator">
+      <Loader2 className="spin" size={18} />
+      <div>
+        <strong>正在整理书本…</strong>
+        <span>{status.name}</span>
+        <small>
+          {formatBytes(status.size)}
+          {' · '}已等待 {seconds} 秒
+          {status.total > 1 ? ` · ${status.index} / ${status.total}` : ''}
+        </small>
+        {seconds >= 8 && (
+          <em>文件较大时解析会久一些，请保持页面在前台。</em>
+        )}
+      </div>
     </div>
   )
 }

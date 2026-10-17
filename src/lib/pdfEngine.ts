@@ -90,6 +90,9 @@ export class PdfEngine implements ReaderEngineHandle {
   #ttsHighlight: { page: number; rects: PdfRect[] } | null = null
   #lastEmittedPage = 0
   #events = new AbortController()
+  #maxBuiltPage = 0
+  #fillTimer: number | null = null
+  #initialPageWindow = 8
 
   constructor(options: {
     container: HTMLElement
@@ -138,12 +141,13 @@ export class PdfEngine implements ReaderEngineHandle {
       const firstPage = await pdf.getPage(1)
       const firstViewport = firstPage.getViewport({ scale: 1 })
       this.#firstDims = { width: firstViewport.width, height: firstViewport.height }
-      this.#toc = await buildPdfToc(pdf)
-      this.#buildPageSkeletons()
-      this.#relayout()
 
       const initial = Number(/^pdf:(\d+)/.exec(options.initialLocation ?? '')?.[1]) || 1
       this.#currentPage = clamp(initial, 1, this.#totalPages)
+      this.#buildPageSkeletons()
+      this.#ensurePagesThrough(this.#currentPage)
+      this.#relayout()
+
       this.#observer = new IntersectionObserver(entries => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
@@ -159,11 +163,13 @@ export class PdfEngine implements ReaderEngineHandle {
       this.#emitRelocate(true)
 
       const info: ReadyInfo = {
-        toc: this.#toc,
+        toc: [],
         isFixedLayout: false,
         chapterCount: this.#totalPages,
       }
       this.#callbacks.onReady(info)
+      void this.#loadToc()
+      this.#schedulePageFill()
     } catch (error) {
       if (this.#destroyed) return
       const message = error instanceof Error ? error.message : String(error)
@@ -174,36 +180,97 @@ export class PdfEngine implements ReaderEngineHandle {
   }
 
   #buildPageSkeletons() {
-    if (!this.#pagesHost) return
-    const fragment = document.createDocumentFragment()
-    const ratio = this.#firstDims.height / this.#firstDims.width
-    for (let page = 1; page <= this.#totalPages; page++) {
-      const wrapper = document.createElement('div')
-      wrapper.className = 'pdf-page'
-      wrapper.dataset.page = String(page)
-      const surface = document.createElement('div')
-      surface.className = 'pdf-page__surface'
-      surface.style.paddingBottom = `${ratio * 100}%`
-      const canvas = document.createElement('canvas')
-      canvas.className = 'pdf-page__canvas'
-      const textLayer = document.createElement('div')
-      textLayer.className = 'textLayer'
-      const annotationLayer = document.createElement('div')
-      annotationLayer.className = 'pdf-page__annotations'
-      const overlayLayer = document.createElement('div')
-      overlayLayer.className = 'pdf-page__overlay'
-      surface.append(canvas, textLayer, annotationLayer, overlayLayer)
-      const label = document.createElement('span')
-      label.className = 'pdf-page__label'
-      label.textContent = String(page)
-      wrapper.append(surface, label)
-      fragment.append(wrapper)
-      this.#pages.set(page, {
-        number: page, wrapper, surface, canvas, textLayer,
-        annotationLayer, overlayLayer, rendered: false, rendering: null,
-      })
+    this.#createPageRange(1, Math.min(this.#totalPages, this.#initialPageWindow))
+  }
+
+  async #loadToc() {
+    const pdf = this.#pdf
+    if (!pdf) return
+    try {
+      const toc = await buildPdfToc(pdf)
+      if (this.#destroyed) return
+      this.#toc = toc
+      this.#callbacks.onTocUpdate?.(toc)
+    } catch {
+      /* the outline is optional */
     }
-    this.#pagesHost.append(fragment)
+  }
+
+  #makePageState(page: number): PageState {
+    const ratio = this.#firstDims.height / this.#firstDims.width
+    const wrapper = document.createElement('div')
+    wrapper.className = 'pdf-page'
+    wrapper.dataset.page = String(page)
+    const surface = document.createElement('div')
+    surface.className = 'pdf-page__surface'
+    surface.style.paddingBottom = `${ratio * 100}%`
+    const canvas = document.createElement('canvas')
+    canvas.className = 'pdf-page__canvas'
+    const textLayer = document.createElement('div')
+    textLayer.className = 'textLayer'
+    const annotationLayer = document.createElement('div')
+    annotationLayer.className = 'pdf-page__annotations'
+    const overlayLayer = document.createElement('div')
+    overlayLayer.className = 'pdf-page__overlay'
+    surface.append(canvas, textLayer, annotationLayer, overlayLayer)
+    const label = document.createElement('span')
+    label.className = 'pdf-page__label'
+    label.textContent = String(page)
+    wrapper.append(surface, label)
+    return {
+      number: page, wrapper, surface, canvas, textLayer,
+      annotationLayer, overlayLayer, rendered: false, rendering: null,
+    }
+  }
+
+  #createPageRange(from: number, to: number) {
+    if (!this.#pagesHost) return
+    const start = Math.max(1, from)
+    const end = Math.min(this.#totalPages, to)
+    if (start > end) return
+    const fragment = document.createDocumentFragment()
+    const created: PageState[] = []
+    for (let page = start; page <= end; page++) {
+      if (this.#pages.has(page)) continue
+      const state = this.#makePageState(page)
+      this.#pages.set(page, state)
+      fragment.append(state.wrapper)
+      created.push(state)
+    }
+    if (created.length) {
+      this.#pagesHost.append(fragment)
+      if (this.#observer) {
+        for (const state of created) this.#observer.observe(state.wrapper)
+      }
+    }
+    this.#maxBuiltPage = Math.max(this.#maxBuiltPage, end)
+  }
+
+  #ensurePagesThrough(page: number) {
+    if (page <= this.#maxBuiltPage) return
+    this.#createPageRange(this.#maxBuiltPage + 1, Math.min(page, this.#totalPages))
+  }
+
+  #schedulePageFill() {
+    if (this.#destroyed || this.#maxBuiltPage >= this.#totalPages) return
+    const step = () => {
+      this.#fillTimer = null
+      if (this.#destroyed || this.#maxBuiltPage >= this.#totalPages) return
+      const from = this.#maxBuiltPage + 1
+      this.#createPageRange(from, Math.min(this.#totalPages, from + 60))
+      if (this.#maxBuiltPage < this.#totalPages) {
+        this.#fillTimer = this.#idle(step)
+      }
+    }
+    this.#fillTimer = this.#idle(step)
+  }
+
+  #idle(callback: () => void): number {
+    const idle = (window as unknown as {
+      requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number
+    }).requestIdleCallback
+    if (typeof idle === 'function') return idle(callback, { timeout: 500 })
+    return window.setTimeout(callback, 24)
   }
 
   #computeScale() {
@@ -249,8 +316,10 @@ export class PdfEngine implements ReaderEngineHandle {
   }
 
   async #renderPage(number: number): Promise<void> {
+    if (!this.#pdf || this.#destroyed) return
+    if (!this.#pages.has(number)) this.#ensurePagesThrough(number)
     const state = this.#pages.get(number)
-    if (!state || !this.#pdf || this.#destroyed) return
+    if (!state) return
     if (state.rendered) {
       this.#paintAnnotations(state)
       this.#paintSearch(state)
@@ -451,6 +520,9 @@ export class PdfEngine implements ReaderEngineHandle {
       }
       if (page !== this.#currentPage) {
         this.#currentPage = page
+        if (this.#maxBuiltPage < this.#totalPages && page >= this.#maxBuiltPage - 1) {
+          this.#ensurePagesThrough(Math.min(this.#totalPages, this.#maxBuiltPage + 8))
+        }
         this.#emitRelocate()
       }
     })
@@ -488,6 +560,7 @@ export class PdfEngine implements ReaderEngineHandle {
 
   #scrollToPage(page: number, behavior: ScrollBehavior = 'auto') {
     if (!this.#scroll) return
+    this.#ensurePagesThrough(page)
     const state = this.#pages.get(page)
     if (!state) return
     this.#currentPage = page

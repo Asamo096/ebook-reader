@@ -325,6 +325,35 @@
   letter-spacing: 0.03em;
 }
 
+.reader-loading__elapsed {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--reader-muted);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-loading__hint {
+  max-width: 390px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--reader-muted);
+}
+
+.reader-loading__back {
+  margin-top: 10px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  border-color: var(--reader-border);
+  color: var(--reader-text);
+}
+
+.reader-loading__back:hover {
+  background: color-mix(in srgb, var(--reader-text) 6%, transparent);
+}
+
 .reader-error svg {
   color: var(--reader-accent);
 }
