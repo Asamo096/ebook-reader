@@ -135,6 +135,9 @@ export const debounce = <T extends (...args: never[]) => void>(fn: T, wait: numb
 
 export const toReadableError = (error: unknown, format?: BookFormat): string => {
   const message = error instanceof Error ? error.message : String(error)
+  if (/Failed to fetch dynamically imported module|Importing a module script failed/i.test(message)) {
+    return '应用刚刚更新过，旧页面资源已失效，请刷新页面后重试。'
+  }
   if (/drm|encrypt|encrypted|crypto/i.test(message)) {
     return '这本书似乎受 DRM 保护，暂时无法打开。'
   }

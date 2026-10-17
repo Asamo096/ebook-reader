@@ -49,6 +49,10 @@ npm run build:reader
 `Asamo096.github.io` 仓库 `site` 分支的 `Reader/` 目录，提交并推送即可通过
 `https://asamo096.github.io/Reader/` 访问（该地址会因自定义域名跳到 `https://asamo.top/Reader/`）。
 
+> 更新部署时请**保留** `Reader/assets/` 下旧的带 hash 文件，不要先清空整个目录。用户手机上可能还开着旧页面，
+> 它仍会请求旧的动态 chunk；保留这些文件可以避免 `Failed to fetch dynamically imported module`。
+> 新版本页面在检测到 chunk 失效时也会自动刷新一次。
+
 本仓库的源码仍在 `ebook-reader` 中，`Asamo096.github.io/Reader/` 只存放编译产物。
 
 > **数据存储在同一浏览器、同一源（协议 + 主机 + 端口）下。** 开发、预览与生产服务都默认使用 `http://127.0.0.1:5173`，请固定使用该地址打开；换成 `localhost` 或其他端口会被浏览器视为另一个站点，书架会显示为空。清除站点数据也会删除全部书籍与笔记。
