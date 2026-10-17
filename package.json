@@ -1,0 +1,29 @@
+{
+  "name": "moyue-reader",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "墨阅 — 本地电子书阅读器，支持 EPUB / MOBI / AZW3 / PDF / TXT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5173",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@zip.js/zip.js": "^2.8.2",
+    "fflate": "^0.8.2",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "5.5.207",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.2"
+  }
+}
