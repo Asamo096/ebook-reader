@@ -354,6 +354,15 @@
   background: color-mix(in srgb, var(--reader-text) 6%, transparent);
 }
 
+.reader-loading__retry {
+  margin-top: 2px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  background: var(--reader-accent);
+  color: var(--reader-bg);
+}
+
 .reader-error svg {
   color: var(--reader-accent);
 }

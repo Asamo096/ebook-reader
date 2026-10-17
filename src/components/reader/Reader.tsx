@@ -41,12 +41,13 @@ const emptySearchState = (query = ''): SearchState => ({
 const isSmallScreen = () => window.matchMedia('(max-width: 860px)').matches
 
 const ReaderLoading = ({
-  title, fileSize, isPdf, onBack,
+  title, fileSize, isPdf, onBack, onRetry,
 }: {
   title: string
   fileSize: number
   isPdf: boolean
   onBack: () => void
+  onRetry: () => void
 }) => {
   const [seconds, setSeconds] = useState(0)
   useEffect(() => {
@@ -76,6 +77,11 @@ const ReaderLoading = ({
       <button type="button" className="btn btn--ghost reader-loading__back" onClick={onBack}>
         返回书架
       </button>
+      {seconds >= 8 && (
+        <button type="button" className="btn btn--primary reader-loading__retry" onClick={onRetry}>
+          重新加载
+        </button>
+      )}
     </div>
   )
 }
@@ -833,6 +839,7 @@ export const Reader = ({
               fileSize={book.fileSize}
               isPdf={isPdf}
               onBack={handleBack}
+              onRetry={() => setReloadKey(key => key + 1)}
             />
           )}
           {error && !loading && (

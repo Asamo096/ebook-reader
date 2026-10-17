@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Book, ReadingProgress, ReaderSettings } from './types'
-import { getAllBooks, putBook, removeBook, findBookByFingerprint } from './lib/db'
+import { getAllBooks, saveBook, saveProgress, removeBook, findBookByFingerprint } from './lib/db'
 import { createBookFromFile } from './lib/importer'
 import { detectFormat, formatBytes, isSupportedFile, toReadableError } from './lib/utils'
 import { loadSettings, saveSettings } from './lib/themes'
@@ -38,9 +38,6 @@ const App = () => {
   const [deleteTarget, setDeleteTarget] = useState<Book | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<Book | null>(null)
   const { toasts, notify, dismiss } = useToasts()
-
-  const booksRef = useRef(books)
-  useEffect(() => { booksRef.current = books }, [books])
 
   useEffect(() => {
     let cancelled = false
@@ -102,22 +99,23 @@ const App = () => {
       return next.sort((a, b) =>
         (b.lastOpenedAt || b.addedAt) - (a.lastOpenedAt || a.addedAt))
     })
-    void putBook(book)
   }, [])
 
   const openBook = useCallback((book: Book) => {
-    const opened = { ...book, lastOpenedAt: Date.now() }
-    setBooks(prev => prev.map(item => (item.id === book.id ? opened : item)))
-    void putBook(opened)
+    const now = Date.now()
+    const opened = { ...book, lastOpenedAt: now }
+    updateBook(opened)
+    void saveProgress(book.id, book.progress, now)
     setDetailsTarget(null)
     navigate(`#/read/${encodeURIComponent(book.id)}`)
-  }, [navigate])
+  }, [navigate, updateBook])
 
   const handleProgress = useCallback((bookId: string, progress: ReadingProgress) => {
-    const target = booksRef.current.find(book => book.id === bookId)
-    if (!target) return
-    updateBook({ ...target, progress, lastOpenedAt: Date.now() })
-  }, [updateBook])
+    const now = Date.now()
+    setBooks(prev => prev.map(book =>
+      book.id === bookId ? { ...book, progress, lastOpenedAt: now } : book))
+    void saveProgress(bookId, progress, now)
+  }, [])
 
   const handleDelete = useCallback(async (book: Book) => {
     try {
@@ -153,7 +151,7 @@ const App = () => {
             continue
           }
           const book = await createBookFromFile(file)
-          await putBook(book)
+          await saveBook(book)
           setBooks(prev => [book, ...prev])
           notify(`《${book.title}》已加入书架`, 'success')
         } catch (error) {
