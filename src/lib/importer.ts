@@ -59,11 +59,11 @@ export const createBookFromFile = async (file: File): Promise<Book> => {
     const pdf = await loadPdfDocument(buffer)
     try {
       const info = await extractPdfInfo(pdf)
-      title = (info.title || title).trim()
-      author = (info.author || author).trim()
-      description = (info.description || '').trim().slice(0, 500)
-      publisher = info.publisher || ''
-      language = info.language || ''
+      title = (textValue(info.title) || title).trim()
+      author = (textValue(info.author) || author).trim()
+      description = textValue(info.description).trim().slice(0, 500)
+      publisher = textValue(info.publisher)
+      language = textValue(info.language)
       cover = await renderPdfCover(pdf)
     } finally {
       await pdf.destroy()

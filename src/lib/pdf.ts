@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { TocItem } from '../types'
+import { textValue } from './utils'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -39,28 +40,32 @@ export const renderPdfCover = async (pdf: PDFDocument): Promise<Blob | null> => 
 }
 
 export const extractPdfInfo = async (pdf: PDFDocument) => {
-  let info: Record<string, unknown> = {}
-  try {
-    const metadata = await pdf.getMetadata()
-    const raw = metadata.info as Record<string, unknown> | undefined
-    const generic = metadata.metadata
-    info = {
-      title: generic?.get?.('dc:title') || raw?.Title,
-      author: generic?.get?.('dc:creator') || raw?.Author,
-      description: generic?.get?.('dc:description') || raw?.Subject,
-      publisher: generic?.get?.('dc:publisher') || raw?.Publisher,
-      language: generic?.get?.('dc:language'),
-    }
-  } catch {
-    /* metadata is optional */
-  }
-  return info as {
+  let info: {
     title?: string
     author?: string
     description?: string
     publisher?: string
     language?: string
+  } = {}
+  try {
+    const metadata = await pdf.getMetadata()
+    const raw = metadata.info as Record<string, unknown> | undefined
+    const generic = metadata.metadata
+    const value = (input: unknown) => {
+      const text = textValue(input).trim()
+      return text || undefined
+    }
+    info = {
+      title: value(generic?.get?.('dc:title')) ?? value(raw?.Title),
+      author: value(generic?.get?.('dc:creator')) ?? value(raw?.Author),
+      description: value(generic?.get?.('dc:description')) ?? value(raw?.Subject),
+      publisher: value(generic?.get?.('dc:publisher')) ?? value(raw?.Publisher),
+      language: value(generic?.get?.('dc:language')),
+    }
+  } catch {
+    /* metadata is optional */
   }
+  return info
 }
 
 export const buildPdfToc = async (pdf: PDFDocument): Promise<TocItem[]> => {
